@@ -48,7 +48,7 @@ An event is delivered on a channel only if every check passes, in this order:
 ## Guarantees
 
 - No hook throws into or blocks the host. Failures are swallowed, and logged when `OPENCODE_NOTIFIER_DEBUG=1`.
-- Focus detection fails open. On KDE, a valid `OPENCODE_NOTIFIER_WINDOW_ID` overrides the startup window for both suppression and jump-back; numeric IDs and braced KWin UUIDs are accepted. Captured host windows work for embedded terminals without process ancestry. Jump-back selects the window, not its tab or session.
+- Focus detection fails open. On KDE, a valid `OPENCODE_NOTIFIER_WINDOW_ID` overrides the captured host window for both suppression and jump-back; numeric IDs and braced KWin UUIDs are accepted. Capture first resolves terminal/editor ancestors to their window, using the foreground window only to disambiguate multiple windows belonging to that host. Without host ancestry, focused-startup capture supports embedded launchers, rejecting a foreground app that conflicts with a known `TERM_PROGRAM`. Unknown or ambiguous targets keep notifications enabled and have no jump action. Capture does not modify the process environment, and failed activation never selects another terminal. Jump-back selects the window, not its tab or session.
 - A missing or invalid config file means defaults. Config path: `OPENCODE_NOTIFIER_CONFIG_PATH`, else `~/.config/opencode/opencode-notifier.json`.
 - Unset new options reproduce the previous release's behavior.
 - A volume of `0` skips playback on every platform.

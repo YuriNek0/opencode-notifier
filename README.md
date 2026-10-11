@@ -555,7 +555,9 @@ Works with all major notification daemons (GNOME, dunst, mako, swaync, etc.) on 
 
 On KDE Plasma and GNOME Wayland, use the explicit **Jump to terminal** action button. Clicking the popup body is not reliably routed back to the plugin.
 
-On KDE with `kdotool` installed, the plugin captures the startup window ID and uses it for both focus suppression and jump-back. Numeric IDs and KWin 6 braced UUIDs are supported, including embedded terminals such as Obsidian. Keep the host window focused when OpenCode starts. An explicit `OPENCODE_NOTIFIER_WINDOW_ID` takes precedence for both checks.
+On KDE with `kdotool` installed, the plugin finds the host window from the OpenCode client's terminal or editor process ancestry and uses it for both focus suppression and jump-back. This lets a VS Code terminal started in the background return to VS Code even if Ghostty was focused. Numeric IDs and KWin 6 braced UUIDs are supported. If a host owns several windows, the focused window must belong to that host to resolve the ambiguity; otherwise notifications remain enabled and no jump action is offered. An explicit `OPENCODE_NOTIFIER_WINDOW_ID` takes precedence for both checks.
+
+Sandboxed or embedded launchers can hide process ancestry. In that case, keep the intended host window focused when OpenCode starts, or pin its ID explicitly. A known `TERM_PROGRAM` must match the foreground app before it can be captured. Automatically captured IDs stay local to the client and are not exported into its environment. If the captured window closes or activation fails, the plugin does not select another terminal.
 
 On GNOME Wayland, the bundled **OpenCode Notifier Jump Back** Shell extension is needed **only for the Jump to terminal action**. Normal notification popups, sounds, and existing focus suppression work without it.
 
@@ -700,7 +702,7 @@ export OPENCODE_NOTIFIER_WINDOW_ID="$(kdotool getactivewindow)"
 opencode
 ```
 
-Manual pinning bypasses heuristic window matching and uses that exact window for both focus suppression and notification action clicks. For Flatpak or other embedded launchers, capture the host window ID before crossing the sandbox boundary and pass `OPENCODE_NOTIFIER_WINDOW_ID` into the OpenCode client environment. Process ancestry and `TERM_PROGRAM` are not needed when the window ID is available.
+Manual pinning uses that exact window for both focus suppression and notification action clicks. For Flatpak or other embedded launchers, capture the host window ID before crossing the sandbox boundary and pass `OPENCODE_NOTIFIER_WINDOW_ID` into the OpenCode client environment. Process ancestry and `TERM_PROGRAM` are not needed when the window ID is available.
 
 Jump-back activates the host window; it does not select an embedded tab or switch the OpenCode session. Use `onClickCommand` with `{sessionID}` if the integration provides a session-selection command. Closing or restarting an embedded terminal is managed by its host integration; the notifier does not start or supervise interactive OpenCode clients.
 

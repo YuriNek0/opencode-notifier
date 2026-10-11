@@ -2,9 +2,9 @@ import type { Plugin } from "@opencode/plugin/tui"
 import { captureStartupWindowId } from "./focus"
 import { createV2Notifier } from "./v2"
 
-const setup: Plugin.Definition["setup"] = (ctx) => {
+const setup: Plugin.Definition["setup"] = async (ctx) => {
   let location = ctx.location ?? ctx.data.location.default()
-  captureStartupWindowId()
+  await captureStartupWindowId()
   let notifier = createV2Notifier(ctx.client, location, "terminal")
   let disposed = false
   const stop = ctx.data.listen(({ details }) => {
