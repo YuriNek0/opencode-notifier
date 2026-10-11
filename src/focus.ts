@@ -62,6 +62,21 @@ function isNumericWindowId(value: string): boolean {
   return /^\d+$/.test(value)
 }
 
+// KWin 6 / kdotool identify native Wayland windows with braced UUIDs.
+// Keep this validator separate from numeric X11/Sway/Niri IDs.
+export function isKDEWindowId(value: string): boolean {
+  return isNumericWindowId(value) || /^\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}$/i.test(value)
+}
+
+function firstKDEWindowId(output: string | null): string | null {
+  return output?.split(/\s+/).find(isKDEWindowId) ?? null
+}
+
+function getPinnedKDEWindowId(): string | null {
+  const id = process.env.OPENCODE_NOTIFIER_WINDOW_ID?.trim()
+  return id && isKDEWindowId(id) ? id : null
+}
+
 function isSafeCompositorWindowId(value: string): boolean {
   return /^[A-Za-z0-9._:-]+$/.test(value)
 }
@@ -148,7 +163,7 @@ function getLinuxWaylandActiveWindowId(): string | null {
   if (env.HYPRLAND_INSTANCE_SIGNATURE) return getHyprlandActiveWindowId()
   if (env.NIRI_SOCKET) return getNiriActiveWindowId()
   if (env.SWAYSOCK) return getSwayActiveWindowId()
-  if (env.KDE_SESSION_VERSION) return firstNumericWindowId(execWithTimeout("kdotool getactivewindow"))
+  if (env.KDE_SESSION_VERSION) return firstKDEWindowId(execWithTimeout("kdotool getactivewindow"))
   if (isGnomeLikeSession(env)) return getGnomeShellWindowKey() ?? getGnomeAtspiActiveWindowKey()
   return null
 }
@@ -478,7 +493,10 @@ function getActiveWindowId(): string | null {
   return null
 }
 
-const cachedWindowId: string | null = getActiveWindowId()
+const cachedWindowId: string | null =
+  process.platform === "linux" && process.env.KDE_SESSION_VERSION
+    ? getPinnedKDEWindowId() ?? getActiveWindowId()
+    : getActiveWindowId()
 
 let cachedWindowTitleValue: string | null | undefined
 
@@ -600,11 +618,11 @@ function getWindowIdFromXdotool(searchTerm: string): string | null {
 }
 
 function getWindowIdFromKdotool(searchTerm: string): string | null {
-  return firstNumericWindowId(execFileWithTimeout("kdotool", ["search", "--classname", searchTerm]))
+  return firstKDEWindowId(execFileWithTimeout("kdotool", ["search", "--classname", searchTerm]))
 }
 
 function getWindowTitleFromKdotool(windowId: string): string | null {
-  if (!isNumericWindowId(windowId)) return null
+  if (!isKDEWindowId(windowId)) return null
   return execFileWithTimeout("kdotool", ["getwindowname", windowId])
 }
 
@@ -745,10 +763,10 @@ function focusLinuxWindowX11(windowId: string): void {
 }
 
 function focusLinuxWindowKDE(windowId: string): void {
-  if (!isNumericWindowId(windowId)) return
+  if (!isKDEWindowId(windowId)) return
 
   try {
-    const result = firstNumericWindowId(execWithTimeout("kdotool getactivewindow"))
+    const result = firstKDEWindowId(execWithTimeout("kdotool getactivewindow"))
     if (result === windowId) return
     execFileSync("kdotool", ["windowactivate", windowId], { timeout: 1000, stdio: "ignore" })
   } catch {
@@ -836,8 +854,8 @@ export function resolveQdbusBinary(): string | null {
 
 function focusKDEWithKWinScript(): void {
   try {
-    const pinnedWindowId = process.env.OPENCODE_NOTIFIER_WINDOW_ID?.trim() || null
-    if (pinnedWindowId && isNumericWindowId(pinnedWindowId)) {
+    const pinnedWindowId = getPinnedKDEWindowId()
+    if (pinnedWindowId) {
       try {
         execFileSync("kdotool", ["windowactivate", pinnedWindowId], { timeout: 1500, stdio: "ignore" })
         return
@@ -845,7 +863,7 @@ function focusKDEWithKWinScript(): void {
       }
     }
 
-    if (cachedWindowId && isNumericWindowId(cachedWindowId)) {
+    if (cachedWindowId && isKDEWindowId(cachedWindowId)) {
       try {
         execFileSync("kdotool", ["windowactivate", cachedWindowId], { timeout: 1500, stdio: "ignore" })
         return
@@ -1074,13 +1092,13 @@ export function captureStartupWindowId(): void {
     return
   }
 
-  const existing = process.env.OPENCODE_NOTIFIER_WINDOW_ID?.trim()
+  const existing = getPinnedKDEWindowId()
   if (existing) {
     return
   }
 
-  const detected = execWithTimeout("kdotool getactivewindow", 1000)
-  if (detected && /^\d+$/.test(detected)) {
+  const detected = cachedWindowId ?? firstKDEWindowId(execWithTimeout("kdotool getactivewindow", 1000))
+  if (detected && isKDEWindowId(detected)) {
     process.env.OPENCODE_NOTIFIER_WINDOW_ID = detected
   }
 }

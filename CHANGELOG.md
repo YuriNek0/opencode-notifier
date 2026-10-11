@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- KDE focus suppression and jump-back accept KWin UUID window IDs, including embedded terminals; an explicit host window ID now controls both suppression and activation (issue #133).
+
 ## [0.8.1] - 2026-10-09
 
 ### Fixed
