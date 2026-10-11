@@ -26,7 +26,9 @@ Restart OpenCode. The package contains both implementations; you do not select a
 
 Sounds, desktop popups, terminal bells, Ghostty notifications, and focus detection run in the terminal client. Custom commands run once per event on the server, including when no terminal is open. This uses the existing `command` configuration; no external notification service is bundled.
 
-With a remote server, put sound and popup settings on your local computer and custom-command settings on the server. Event-command script paths refer to the server's filesystem. Click-command paths refer to the computer displaying the notification. Focus suppression applies to local alerts, not server commands. Each attached terminal receives alerts for its project. When several terminals on one computer show the same session, only the first to receive an event alerts; terminals on other computers each alert.
+With a remote server, put sound and popup settings on your local computer and custom-command settings on the server. Event-command script paths refer to the server's filesystem. Click-command paths refer to the computer displaying the notification. Focus suppression applies to local alerts, not server commands. Each attached terminal receives alerts for its project. On one computer, clients with the session's family open in a tab or current route take priority over unrelated clients in the same project. If several eligible clients have it open, only the first to claim the event alerts. If none have it open, an eligible client still alerts after a brief fallback grace; terminals on other computers each alert.
+
+Clients publish their open-session IDs in private temporary files, refreshed once per second and removed on disposal. Dead processes and presence older than five seconds are ignored. If the registry or client-local UI APIs are unavailable, alerts fail open through the existing event claim.
 
 `opencode run` and Desktop/Web clients do not load this terminal component, so they receive no plugin sound, popup, or bell. Server commands still run. V1 delivery and its `enableOnDesktop` behavior are unchanged.
 
@@ -380,7 +382,7 @@ scripts you trust.
 
 On Linux, use the explicit **Run command** action button; popup body clicks are not reliably delivered. The notification daemon must support actions and `notify-send` must support `--action`. The click listener expires after `timeout` plus one second. Windows toasts and macOS `node-notifier` deliver their activation callback; AppleScript and Ghostty OSC notifications do not support this command.
 
-`focusOnClick` defaults to `true` and enables the built-in KDE/GNOME jump-back when available. Set it to `false` for a script-only action. When both are enabled, clicking runs your script and focuses the terminal. On V2, configure click commands in the local terminal's configuration and event commands on the server. `events.<event>.command` controls event commands only; a click command is available for any enabled popup.
+`focusOnClick` defaults to `true` and enables the built-in KDE/GNOME jump-back when available. On V2, jump-back also selects the completed session in the delivering client, using its tab or session route. Set it to `false` for a script-only action. When both are enabled, clicking runs your script and focuses the terminal. On V2, configure click commands in the local terminal's configuration and event commands on the server. `events.<event>.command` controls event commands only; a click command is available for any enabled popup.
 
 #### Example: Log events to a file
 
@@ -704,7 +706,7 @@ opencode
 
 Manual pinning uses that exact window for both focus suppression and notification action clicks. For Flatpak or other embedded launchers, capture the host window ID before crossing the sandbox boundary and pass `OPENCODE_NOTIFIER_WINDOW_ID` into the OpenCode client environment. Process ancestry and `TERM_PROGRAM` are not needed when the window ID is available.
 
-Jump-back activates the host window; it does not select an embedded tab or switch the OpenCode session. Use `onClickCommand` with `{sessionID}` if the integration provides a session-selection command. Closing or restarting an embedded terminal is managed by its host integration; the notifier does not start or supervise interactive OpenCode clients.
+Jump-back activates the host window. On V2 it also selects the event's OpenCode session in that terminal client; it cannot switch between separate embedded terminals managed by the host app. V1 needs `onClickCommand` with `{sessionID}` if the integration provides a session-selection command. Closing or restarting an embedded terminal is managed by its host integration; the notifier does not start or supervise interactive OpenCode clients.
 
 **X11 deterministic jump-back**
 
