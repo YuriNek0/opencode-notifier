@@ -148,3 +148,28 @@ test.skipIf(process.platform !== "linux")(
     expect(existsSync(gdbusLog)).toBe(false)
   }
 )
+
+test.skipIf(process.platform !== "linux")(
+  "node-notifier fallback passes --app-name so daemons show opencode",
+  async () => {
+    // With grouping off and no click handler, sendNotification falls
+    // through to node-notifier's NotifySend. It only maps the kebab-case
+    // "app-name" key; the Windows camelCase `appName` key is silently
+    // dropped, leaving the default "notify-send" label (seen via dunstctl).
+    const notifySendLog = join(directory, "notify-send-args.jsonl")
+    writeExecutable(
+      "notify-send",
+      `import { appendFileSync } from "node:fs"\nappendFileSync(${JSON.stringify(notifySendLog)}, JSON.stringify(process.argv.slice(2)) + "\\n")\n`
+    )
+    const modulePath = join(import.meta.dir, "notify.ts")
+    const marker = `fallback app-name test ${Date.now()}`
+    const stdout = await runSendNotification({ DBUS_SESSION_BUS_ADDRESS: "fixture" }, `
+      const { sendNotification } = await import(${JSON.stringify(modulePath)})
+      await sendNotification("OpenCode", ${JSON.stringify(marker)}, 1, undefined, "osascript", false)
+      console.log("sent")
+    `)
+    expect(stdout).toBe("sent")
+    const argv: string[] = JSON.parse(readFileSync(notifySendLog, "utf8").trim())
+    expect(argv[argv.indexOf("--app-name") + 1]).toBe("opencode")
+  }
+)

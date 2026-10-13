@@ -429,6 +429,29 @@ export function buildWindowsNotificationOptions(
   }
 }
 
+export interface LinuxNotificationOptions {
+  title: string
+  message: string
+  timeout: number
+  icon: string | undefined
+  "app-name": string
+}
+
+export function buildLinuxNotificationOptions(
+  title: string,
+  message: string,
+  timeout: number,
+  iconPath?: string
+): LinuxNotificationOptions {
+  return {
+    title: title,
+    message: message,
+    timeout: timeout,
+    icon: iconPath,
+    "app-name": "opencode",
+  }
+}
+
 export function buildOsascriptNotificationArgs(title: string, message: string): string[] {
   return [
     "-e",
@@ -522,7 +545,9 @@ export async function sendNotification(
   }
 
   return new Promise((resolve) => {
-    const notificationOptions = buildWindowsNotificationOptions(title, message, timeout, iconPath, windowsAppID)
+    const notificationOptions = (platform === "Linux" || platform.match(/BSD$/)) && !isWsl
+      ? buildLinuxNotificationOptions(title, message, timeout, iconPath)
+      : buildWindowsNotificationOptions(title, message, timeout, iconPath, windowsAppID)
 
     platformNotifier.notify(
       notificationOptions,
