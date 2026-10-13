@@ -429,29 +429,6 @@ export function buildWindowsNotificationOptions(
   }
 }
 
-export interface LinuxNotificationOptions {
-  title: string
-  message: string
-  timeout: number
-  icon: string | undefined
-  "app-name": string
-}
-
-export function buildLinuxNotificationOptions(
-  title: string,
-  message: string,
-  timeout: number,
-  iconPath?: string
-): LinuxNotificationOptions {
-  return {
-    title: title,
-    message: message,
-    timeout: timeout,
-    icon: iconPath,
-    "app-name": "opencode",
-  }
-}
-
 export function buildOsascriptNotificationArgs(title: string, message: string): string[] {
   return [
     "-e",
@@ -545,8 +522,10 @@ export async function sendNotification(
   }
 
   return new Promise((resolve) => {
+    // node-notifier's NotifySend only maps the kebab-case "app-name" key to
+    // --app-name; without it daemons label the popup "notify-send".
     const notificationOptions = (platform === "Linux" || platform.match(/BSD$/)) && !isWsl
-      ? buildLinuxNotificationOptions(title, message, timeout, iconPath)
+      ? { title, message, timeout, icon: iconPath, "app-name": "opencode" }
       : buildWindowsNotificationOptions(title, message, timeout, iconPath, windowsAppID)
 
     platformNotifier.notify(

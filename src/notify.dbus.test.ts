@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test"
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { delimiter, join } from "path"
+import isWsl from "is-wsl"
 import { isNotifySendActionBroken } from "./notify"
 
 const directory = mkdtempSync(join(tmpdir(), "notifier-dbus-test-"))
@@ -149,7 +150,9 @@ test.skipIf(process.platform !== "linux")(
   }
 )
 
-test.skipIf(process.platform !== "linux")(
+// WSL routes to WindowsToaster, which would bypass the fake notify-send and
+// pop a real toast.
+test.skipIf(process.platform !== "linux" || isWsl)(
   "node-notifier fallback passes --app-name so daemons show opencode",
   async () => {
     // With grouping off and no click handler, sendNotification falls

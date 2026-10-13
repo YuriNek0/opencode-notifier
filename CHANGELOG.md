@@ -6,7 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Linux notifications sent through the `node-notifier` fallback (grouping off or `notify-send` older than 0.8, the default-config path) show `opencode` as the app name instead of the default `notify-send` label in dunst and other daemons. The fallback was sending the Windows camelCase `appName` key, which `NotifySend` silently drops instead of mapping to `--app-name`.
+- Linux popups sent without grouping, or with `notify-send` older than 0.8, show `opencode` as the app name in dunst and other daemons instead of `notify-send` (#143).
+
+### Contributors
+
+- Thanks to @mathstuf for the Linux app name fix in #143.
 
 ## [0.8.1] - 2026-10-09
 

@@ -1,6 +1,5 @@
 import { describe, test, expect } from "bun:test"
 import {
-  buildLinuxNotificationOptions,
   buildOsascriptNotificationArgs,
   buildWindowsNotificationOptions,
   formatGhosttyNotificationSequence,
@@ -79,20 +78,5 @@ describe("buildWindowsNotificationOptions", () => {
     expect(options.title).toBe("OpenCode")
     expect(options.message).toBe("done")
     expect(options.icon).toBe("/icon.png")
-  })
-})
-
-describe("buildLinuxNotificationOptions", () => {
-  test("uses the kebab-case app-name key NotifySend maps to --app-name", () => {
-    const options = buildLinuxNotificationOptions("OpenCode", "done", 5, "/icon.png")
-
-    expect(options["app-name"]).toBe("opencode")
-    expect(options.title).toBe("OpenCode")
-    expect(options.message).toBe("done")
-    expect(options.timeout).toBe(5)
-    expect(options.icon).toBe("/icon.png")
-    // The Windows camelCase key is silently dropped by NotifySend and
-    // would leave the default "notify-send" label (e.g. in dunst).
-    expect(options).not.toHaveProperty("appName")
   })
 })
