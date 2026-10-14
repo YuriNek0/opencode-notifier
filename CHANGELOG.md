@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- macOS focus suppression recognizes terminals when `lsappinfo` returns a multiline application report and falls back to System Events when its output cannot be parsed.
+
 ## [0.8.2] - 2026-10-14
 
 ### Fixed

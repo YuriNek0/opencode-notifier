@@ -1,6 +1,46 @@
 import { describe, test, expect } from "bun:test"
-import { isZellijPaneFocused } from "./focus"
+import { isZellijPaneFocused, parseMacOSFrontmostAppName } from "./focus"
 import { isLinuxTerminalFocused, isMacTerminalAppFocused, isTmuxPaneFocused, parseWezTermFocusedPaneId, isKDEJumpBackSupported, captureStartupWindowId, focusTerminal, getCachedWindowTitle, buildOsascriptActivateAppArgs, findQdbusBinary, resolveQdbusBinary, isGnomeLikeSession, getLinuxFocusBackendName, parseAtspiString, parseAtspiObjectRefs, parseAtspiStateActive, isAtspiTerminalWindow, isAtspiWindowRoleAccepted } from "./focus"
+
+describe("parseMacOSFrontmostAppName", () => {
+  test("parses the standard name=value output", () => {
+    expect(parseMacOSFrontmostAppName('"LSDisplayName"="Ghostty"')).toBe("Ghostty")
+    expect(parseMacOSFrontmostAppName('"name"="iTerm2"')).toBe("iTerm2")
+  })
+
+  test("parses the multiline report observed on macOS", () => {
+    const output = [
+      '"Ghostty" ASN:0x0-0x8d08d: (in front) ',
+      '    bundleID=[ NULL ] ',
+      '    bundle path=[ NULL ] ',
+      '    executable path=[ NULL ] ',
+      ' !cgsConnection !signalled type=[ NULL ]  flavor=[ NULL ]  Version=[ NULL ]  Arch=!!none ',
+    ].join("\n")
+
+    expect(parseMacOSFrontmostAppName(output)).toBe("Ghostty")
+  })
+
+  test("preserves spaces and decodes escaped quotes", () => {
+    expect(parseMacOSFrontmostAppName('"LSDisplayName"="Visual Studio Code"')).toBe("Visual Studio Code")
+    expect(parseMacOSFrontmostAppName(String.raw`"LSDisplayName"="Terminal \"Work\""`)).toBe('Terminal "Work"')
+  })
+
+  test("rejects unavailable, empty, malformed, or unrecognized output", () => {
+    for (const output of [
+      null,
+      "",
+      " ",
+      "unrecognized report",
+      '"LSDisplayName"=""',
+      '"LSDisplayName"="   "',
+      String.raw`"LSDisplayName"="Invalid \q"`,
+      '"LSDisplayName"="Ghostty" unexpected text',
+      '"CFBundleIdentifier"="com.example.app"',
+    ]) {
+      expect(parseMacOSFrontmostAppName(output)).toBe(null)
+    }
+  })
+})
 
 describe("isMacTerminalAppFocused", () => {
   test("matches Terminal when TERM_PROGRAM is Apple_Terminal", () => {
