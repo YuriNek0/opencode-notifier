@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.8.2-beta.0] - 2026-10-14
+## [0.8.2] - 2026-10-14
 
 ### Fixed
 
@@ -13,10 +13,15 @@ All notable changes to this project will be documented in this file.
 ### Upgrade notes
 
 - No config changes. A dunst or other daemon rule that matched these popups by the app name `notify-send` needs to match `opencode` instead.
+- `0.8.2` and `0.8.2-beta.0` contain the same implementation and differ only in the package version.
 
 ### Contributors
 
 - Thanks to @mathstuf for the Linux app name fix in #143.
+
+## [0.8.2-beta.0] - 2026-10-14
+
+Same implementation as v0.8.2, with the prerelease package version for npm's `beta` dist-tag.
 
 ## [0.8.1] - 2026-10-09
 
