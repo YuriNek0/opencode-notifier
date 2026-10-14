@@ -4,9 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.2-beta.0] - 2026-10-14
+
 ### Fixed
 
 - Linux popups sent without grouping, or with `notify-send` older than 0.8, show `opencode` as the app name in dunst and other daemons instead of `notify-send` (#143).
+
+### Upgrade notes
+
+- No config changes. A dunst or other daemon rule that matched these popups by the app name `notify-send` needs to match `opencode` instead.
 
 ### Contributors
 
