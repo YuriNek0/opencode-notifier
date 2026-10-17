@@ -89,14 +89,14 @@ export function createTerminalClients(getState: () => TerminalState, rootSession
   heartbeat.unref()
   return {
     refresh,
-    async claim(key: string, sessionID: string | null): Promise<boolean> {
+    async claim(key: string, sessionID: string | null, valid: () => boolean = () => true): Promise<boolean> {
       await refresh()
       if (disposed) return false
-      if (!sessionID) return claimDelivery(key)
+      if (!sessionID) return valid() && claimDelivery(key)
       let root = sessionID
       try { root = rootSession(sessionID) || sessionID } catch {}
       const own = state?.sessions
-      if (own?.includes(sessionID) || own?.includes(root)) return claimDelivery(key)
+      if (own?.includes(sessionID) || own?.includes(root)) return valid() && claimDelivery(key)
       if (await anotherOwner(sessionID, root)) {
         debug(`v2 session ${sessionID}: another terminal has its session open, skipping local delivery`)
         return false
@@ -107,7 +107,8 @@ export function createTerminalClients(getState: () => TerminalState, rootSession
         await new Promise(resolve => setTimeout(resolve, FALLBACK_GRACE_MS))
         if (await anotherOwner(sessionID, root)) return false
       }
-      return !disposed && claimDelivery(key)
+      // The alert can be canceled during the waits above; its retry reuses this key.
+      return !disposed && valid() && claimDelivery(key)
     },
     dispose() {
       disposed = true

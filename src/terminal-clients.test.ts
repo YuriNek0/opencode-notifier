@@ -92,3 +92,16 @@ test("disposal cancels an in-flight fallback instead of claiming or notifying la
   client.dispose()
   expect(await claim).toBe(false)
 })
+
+test("an alert canceled during the fallback wait leaves its key free for the retry", async () => {
+  const { location } = fixture()
+  const client = createTerminalClients(() => ({ location, sessions: [] }))
+  try {
+    await client.refresh()
+    let valid = true
+    const canceled = client.claim("deferred-complete", "parent", () => valid)
+    valid = false
+    expect(await canceled).toBe(false)
+    expect(await client.claim("deferred-complete", "parent", () => true)).toBe(true)
+  } finally { client.dispose() }
+})
