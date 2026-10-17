@@ -6,11 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- OpenCode V2 terminals are now skipping alert-deduplication storage when the claim directory is a symlink, preventing cleanup and marker writes in unexpected locations.
+- OpenCode V2 terminals skip alert deduplication when the claim directory is a symlink, owned by another user, or writable by others, so marker cleanup can no longer delete files outside it (#146; issue #145).
 
 ### Upgrade notes
 
-- No config changes. Fixing #145.
+- No config changes. Terminals sharing a normal temp directory still deliver each alert once, and existing claim directories keep working.
+
+### Contributors
+
+- Thanks to @YuriNek0 for reporting and fixing the claim cleanup issue in #146.
 
 ## [1.0.0] - 2026-10-14
 
