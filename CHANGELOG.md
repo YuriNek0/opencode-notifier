@@ -13,6 +13,43 @@ All notable changes to this project will be documented in this file.
 
 - V2 clients now share open-session presence as well as event claims; when no eligible client has the session open, alerts still use the first claim, and V1 delivery is unchanged.
 
+### Contributors
+
+- Thanks to @kriss-spy for the KDE focus and V2 session routing fixes in #141.
+
+## [1.0.0] - 2026-10-14
+
+### Fixed
+
+- macOS focus suppression recognizes terminals when `lsappinfo` returns a multiline application report and falls back to System Events when its output cannot be parsed (#144).
+
+### Upgrade notes
+
+- No config changes. The jump to 1.0.0 marks the plugin as stable; behavior matches 0.8.2 apart from the macOS fix above.
+
+### Contributors
+
+- Thanks to @bhean for the macOS focus fix in #144.
+
+## [0.8.2] - 2026-10-14
+
+### Fixed
+
+- Linux popups sent without grouping, or with `notify-send` older than 0.8, show `opencode` as the app name in dunst and other daemons instead of `notify-send` (#143).
+
+### Upgrade notes
+
+- No config changes. A dunst or other daemon rule that matched these popups by the app name `notify-send` needs to match `opencode` instead.
+- `0.8.2` and `0.8.2-beta.0` contain the same implementation and differ only in the package version.
+
+### Contributors
+
+- Thanks to @mathstuf for the Linux app name fix in #143.
+
+## [0.8.2-beta.0] - 2026-10-14
+
+Same implementation as v0.8.2, with the prerelease package version for npm's `beta` dist-tag.
+
 ## [0.8.1] - 2026-10-09
 
 ### Fixed

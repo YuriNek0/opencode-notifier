@@ -409,15 +409,31 @@ function getMacOSActiveWindowId(): string | null {
   )
 }
 
+export function parseMacOSFrontmostAppName(output: string | null): string | null {
+  if (!output) return null
+
+  // lsappinfo may return a full application report instead of a name=value line.
+  const match =
+    output.match(/^\s*"(?:name|LSDisplayName)"\s*=\s*("(?:\\.|[^"\\])*")\s*$/m) ??
+    output.match(/^\s*("(?:\\.|[^"\\])*")\s+ASN:/m)
+  if (!match) return null
+
+  try {
+    const name: unknown = JSON.parse(match[1])
+    return typeof name === "string" && name.trim().length > 0 ? name : null
+  } catch {
+    return null
+  }
+}
+
 function getMacOSFrontmostAppName(): string | null {
   // Detect frontmost app regardless of activation policy
   // (apps excluded from Dock and App Switcher)
-  const lsappinfo = execWithTimeout(
-    `lsappinfo info -only name \`lsappinfo front\` | sed 's/.*="\\([^"]*\\)".*/\\1/'`
-  )
-  if (lsappinfo) return lsappinfo
+  const output = execWithTimeout("lsappinfo info -only name $(lsappinfo front)")
+  const name = parseMacOSFrontmostAppName(output)
+  if (name !== null) return name
 
-  // Fallback to System Events if lsappinfo is unavailable
+  // Fall back when lsappinfo is unavailable or its output cannot be parsed.
   return execWithTimeout(
     `osascript -e 'tell application "System Events" to return name of first application process whose frontmost is true'`
   )

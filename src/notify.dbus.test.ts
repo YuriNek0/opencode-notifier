@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test"
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { delimiter, join } from "path"
+import isWsl from "is-wsl"
 import { isNotifySendActionBroken } from "./notify"
 
 const directory = mkdtempSync(join(tmpdir(), "notifier-dbus-test-"))
@@ -146,5 +147,32 @@ test.skipIf(process.platform !== "linux")(
     `)
     expect(stdout).toBe("1")
     expect(existsSync(gdbusLog)).toBe(false)
+  }
+)
+
+// WSL routes to WindowsToaster, which would bypass the fake notify-send and
+// pop a real toast.
+test.skipIf(process.platform !== "linux" || isWsl)(
+  "node-notifier fallback passes --app-name so daemons show opencode",
+  async () => {
+    // With grouping off and no click handler, sendNotification falls
+    // through to node-notifier's NotifySend. It only maps the kebab-case
+    // "app-name" key; the Windows camelCase `appName` key is silently
+    // dropped, leaving the default "notify-send" label (seen via dunstctl).
+    const notifySendLog = join(directory, "notify-send-args.jsonl")
+    writeExecutable(
+      "notify-send",
+      `import { appendFileSync } from "node:fs"\nappendFileSync(${JSON.stringify(notifySendLog)}, JSON.stringify(process.argv.slice(2)) + "\\n")\n`
+    )
+    const modulePath = join(import.meta.dir, "notify.ts")
+    const marker = `fallback app-name test ${Date.now()}`
+    const stdout = await runSendNotification({ DBUS_SESSION_BUS_ADDRESS: "fixture" }, `
+      const { sendNotification } = await import(${JSON.stringify(modulePath)})
+      await sendNotification("OpenCode", ${JSON.stringify(marker)}, 1, undefined, "osascript", false)
+      console.log("sent")
+    `)
+    expect(stdout).toBe("sent")
+    const argv: string[] = JSON.parse(readFileSync(notifySendLog, "utf8").trim())
+    expect(argv[argv.indexOf("--app-name") + 1]).toBe("opencode")
   }
 )
