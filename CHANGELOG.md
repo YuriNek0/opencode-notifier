@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Linux Jump to terminal and Run command buttons remain actionable while hovered popups outlive the requested timeout; their sender and handlers stay connected until notification closure or client shutdown (#142; issue #134).
+
+### Contributors
+
+- Thanks to @kriss-spy for the Linux action lifetime fix in #142.
+
 ## [1.0.0] - 2026-10-14
 
 ### Fixed
