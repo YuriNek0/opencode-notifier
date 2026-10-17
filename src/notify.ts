@@ -230,11 +230,9 @@ export async function sendNotification(
   if ((platform === "Linux" || platform.match(/BSD$/)) && !isWsl) {
     if (!process.env.DBUS_SESSION_BUS_ADDRESS) return
 
-    if (onClick) {
-      const sent = await sendLinuxActionNotification(title, message, timeout, iconPath, linuxGrouping, onClick, clickActionLabel)
-      if (sent) return
-      // Fail open: a broken bus must still allow a plain popup without actions.
-      return sendLinuxNotificationDirect(title, message, timeout, iconPath, linuxGrouping)
+    // Fail open: when the bus is broken, fall through to a plain popup without actions.
+    if (onClick && await sendLinuxActionNotification(title, message, timeout, iconPath, linuxGrouping, onClick, clickActionLabel)) {
+      return
     }
 
     if (linuxGrouping) {

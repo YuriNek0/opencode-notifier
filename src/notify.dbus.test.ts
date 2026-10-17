@@ -4,10 +4,13 @@ import { tmpdir } from "os"
 import { join } from "path"
 import isWsl from "is-wsl"
 
+// WSL reports linux but delivers through WindowsToaster, which would pop real toasts.
+const linuxDesktop = process.platform === "linux" && !isWsl
+
 const directory = mkdtempSync(join(tmpdir(), "notifier-dbus-failure-"))
 afterAll(() => rmSync(directory, { recursive: true, force: true }))
 
-test.skipIf(process.platform !== "linux")("a broken D-Bus connection fails open with a plain popup", async () => {
+test.skipIf(!linuxDesktop)("a broken D-Bus connection fails open with a plain popup", async () => {
   const log = join(directory, "notify-args")
   const executable = join(directory, "notify-send")
   writeFileSync(executable, `#!${process.execPath}\nimport { writeFileSync } from "fs"\nwriteFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)))\nconsole.log("1")\n`)
@@ -32,7 +35,7 @@ test.skipIf(process.platform !== "linux")("a broken D-Bus connection fails open 
 })
 
 
-test.skipIf(process.platform !== "linux")("a hung daemon is bounded and a disposed delivery cannot create a late popup", async () => {
+test.skipIf(!linuxDesktop)("a hung daemon is bounded and a disposed delivery cannot create a late popup", async () => {
   const log = join(directory, "hung-notify-args")
   const executable = join(directory, "notify-send")
   writeFileSync(executable, `#!${process.execPath}\nimport { appendFileSync } from "fs"\nappendFileSync(${JSON.stringify(log)}, "plain\\n")\nconsole.log("1")\n`)
@@ -61,9 +64,27 @@ test.skipIf(process.platform !== "linux")("a hung daemon is bounded and a dispos
   expect(readFileSync(log, "utf8")).toBe("plain\n")
 }, 10000)
 
-// WSL routes to WindowsToaster, which would bypass the fake notify-send and
-// pop a real toast.
-test.skipIf(process.platform !== "linux" || isWsl)("node-notifier fallback passes --app-name so daemons show opencode", async () => {
+test.skipIf(!linuxDesktop)("a broken D-Bus connection with grouping still pops on notify-send older than 0.8", async () => {
+  const log = join(directory, "old-notify-args")
+  const executable = join(directory, "notify-send")
+  // 0.7 has no --print-id or --replace-id and rejects unknown flags.
+  writeFileSync(executable, `#!${process.execPath}\nimport { writeFileSync } from "fs"\nconst args = process.argv.slice(2)\nif (args[0] === "--version") { console.log("notify-send 0.7.9"); process.exit(0) }\nif (args.some(arg => arg === "--print-id" || arg === "--replace-id")) process.exit(1)\nwriteFileSync(${JSON.stringify(log)}, JSON.stringify(args))\n`)
+  chmodSync(executable, 0o755)
+  const modulePath = join(import.meta.dir, "notify.ts")
+  const child = Bun.spawn([process.execPath, "--eval", `
+    const { sendNotification, disposeLinuxNotifications } = await import(${JSON.stringify(modulePath)})
+    await sendNotification("fixture", "old fallback", 1, undefined, "osascript", true, () => {})
+    disposeLinuxNotifications()
+  `], {
+    env: { ...process.env, PATH: directory + ":" + process.env.PATH, DBUS_SESSION_BUS_ADDRESS: "unix:path=/does-not-exist/notifier-fixture" },
+    stdout: "pipe", stderr: "pipe",
+  })
+  const error = await new Response(child.stderr).text()
+  expect(await child.exited, error).toBe(0)
+  expect(JSON.parse(readFileSync(log, "utf8"))).toContain("old fallback")
+})
+
+test.skipIf(!linuxDesktop)("node-notifier fallback passes --app-name so daemons show opencode", async () => {
   // With grouping off and no click handler, sendNotification falls through to
   // node-notifier's NotifySend, which only maps the kebab-case "app-name" key.
   const log = join(directory, "app-name-args")

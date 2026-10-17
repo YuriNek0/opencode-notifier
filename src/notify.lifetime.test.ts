@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test"
 import { join } from "path"
+import isWsl from "is-wsl"
+
+// WSL reports linux but delivers through WindowsToaster, which would pop real toasts.
+const linuxDesktop = process.platform === "linux" && !isWsl
 
 const fixture = join(import.meta.dir, "../test/fixtures/notification-daemon.ts")
 const notify = join(import.meta.dir, "notify.ts")
@@ -13,7 +17,7 @@ async function run(script: string) {
   return output.trim()
 }
 
-test.skipIf(process.platform !== "linux")("a hovered popup keeps its sender and action after the requested timeout", async () => {
+test.skipIf(!linuxDesktop)("a hovered popup keeps its sender and action after the requested timeout", async () => {
   const output = await run(`
     const daemon = await import(${JSON.stringify(fixture)})
     const channel = await import(${JSON.stringify(notify)})

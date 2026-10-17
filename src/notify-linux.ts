@@ -120,11 +120,17 @@ async function connect(): Promise<Connection> {
       member: "AddMatch", signature: "s", body: [rule],
     }))]))
   }
-  const reply = await bounded(Promise.race([failure, bus.call(new dbus.Message({
-    destination: "org.freedesktop.DBus", path: "/org/freedesktop/DBus", interface: "org.freedesktop.DBus",
-    member: "GetNameOwner", signature: "s", body: [DESTINATION],
-  }))]))
-  state.owner = reply?.body[0] ?? ""
+  try {
+    const reply = await bounded(Promise.race([failure, bus.call(new dbus.Message({
+      destination: "org.freedesktop.DBus", path: "/org/freedesktop/DBus", interface: "org.freedesktop.DBus",
+      member: "GetNameOwner", signature: "s", body: [DESTINATION],
+    }))]))
+    state.owner = reply?.body[0] ?? ""
+  } catch (error) {
+    // An installed but inactive daemon has no owner yet. Notify starts it, and
+    // NameOwnerChanged reports its owner before the daemon can send signals.
+    if ((error as { type?: string }).type !== "org.freedesktop.DBus.Error.NameHasNoOwner") throw error
+  }
   if (current !== state || epoch !== generation) throw new Error("notification connection closed")
   return state
 }
@@ -160,6 +166,7 @@ export function sendLinuxActionNotification(
           ["focus-terminal", label], {}, Math.max(1, timeout) * 1000],
       }))]))
       if (current !== state || epoch !== generation) return true
+      if (reply?.sender) state.owner = reply.sender
       const id = reply?.body[0]
       if (!Number.isInteger(id) || id <= 0) throw new Error("invalid notification ID")
       if (grouping) lastID = id
