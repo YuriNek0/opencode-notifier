@@ -1,5 +1,6 @@
 import type { Plugin } from "@opencode/plugin/tui"
 import { captureStartupWindowId } from "./focus"
+import { disposeLinuxNotifications } from "./notify"
 import { createV2Notifier } from "./v2"
 import { createTerminalClients } from "./terminal-clients"
 
@@ -47,6 +48,7 @@ const setup: Plugin.Definition["setup"] = async (ctx) => {
   return () => {
     disposed = true
     clients.dispose()
+    disposeLinuxNotifications()
     stop()
     notifier.dispose()
   }
