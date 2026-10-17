@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test"
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
+import isWsl from "is-wsl"
 
 const directory = mkdtempSync(join(tmpdir(), "notifier-dbus-failure-"))
 afterAll(() => rmSync(directory, { recursive: true, force: true }))
@@ -59,3 +60,26 @@ test.skipIf(process.platform !== "linux")("a hung daemon is bounded and a dispos
   expect(output.trim()).toBe("true")
   expect(readFileSync(log, "utf8")).toBe("plain\n")
 }, 10000)
+
+// WSL routes to WindowsToaster, which would bypass the fake notify-send and
+// pop a real toast.
+test.skipIf(process.platform !== "linux" || isWsl)("node-notifier fallback passes --app-name so daemons show opencode", async () => {
+  // With grouping off and no click handler, sendNotification falls through to
+  // node-notifier's NotifySend, which only maps the kebab-case "app-name" key.
+  const log = join(directory, "app-name-args")
+  const executable = join(directory, "notify-send")
+  writeFileSync(executable, `#!${process.execPath}\nimport { writeFileSync } from "fs"\nwriteFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)))\n`)
+  chmodSync(executable, 0o755)
+  const modulePath = join(import.meta.dir, "notify.ts")
+  const child = Bun.spawn([process.execPath, "--eval", `
+    const { sendNotification } = await import(${JSON.stringify(modulePath)})
+    await sendNotification("OpenCode", "app-name test", 1, undefined, "osascript", false)
+  `], {
+    env: { ...process.env, PATH: directory + ":" + process.env.PATH, DBUS_SESSION_BUS_ADDRESS: "fixture" },
+    stdout: "pipe", stderr: "pipe",
+  })
+  const error = await new Response(child.stderr).text()
+  expect(await child.exited, error).toBe(0)
+  const args: string[] = JSON.parse(readFileSync(log, "utf8"))
+  expect(args[args.indexOf("--app-name") + 1]).toBe("opencode")
+})

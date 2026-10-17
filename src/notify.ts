@@ -248,7 +248,11 @@ export async function sendNotification(
   }
 
   return new Promise((resolve) => {
-    const notificationOptions = buildWindowsNotificationOptions(title, message, timeout, iconPath, windowsAppID)
+    // node-notifier's NotifySend only maps the kebab-case "app-name" key to
+    // --app-name; without it daemons label the popup "notify-send".
+    const notificationOptions = (platform === "Linux" || platform.match(/BSD$/)) && !isWsl
+      ? { title, message, timeout, icon: iconPath, "app-name": "opencode" }
+      : buildWindowsNotificationOptions(title, message, timeout, iconPath, windowsAppID)
 
     platformNotifier.notify(
       notificationOptions,
