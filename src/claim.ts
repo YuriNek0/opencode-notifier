@@ -6,8 +6,11 @@ import { join } from "path"
 const MARKER_TTL_MS = 60 * 60_000
 const MARKER_NAME = /^[a-f0-9]{64}$/
 
+// Logging must never turn a fail-open path into a dropped alert.
 function debug(message: string): void {
-  if (process.env.OPENCODE_NOTIFIER_DEBUG) console.error(`[opencode-notifier] claim: ${message}`)
+  try {
+    if (process.env.OPENCODE_NOTIFIER_DEBUG) console.error(`[opencode-notifier] claim: ${message}`)
+  } catch {}
 }
 
 // V2 terminals sharing a temp directory deduplicate alerts by exclusively creating a marker

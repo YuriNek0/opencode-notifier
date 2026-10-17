@@ -1,4 +1,4 @@
-import { afterAll, expect, test } from "bun:test"
+import { afterAll, expect, spyOn, test } from "bun:test"
 import { createHash } from "crypto"
 import { chmodSync, existsSync, lstatSync, lutimesSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
@@ -82,6 +82,41 @@ test.skipIf(!posix)("a claim directory others can write allows repeated deliveri
     expect(claim("event")).toBe(true)
     expect(existsSync(stale)).toBe(true)
     expect(existsSync(join(dir, hash("event")))).toBe(false)
+  }
+})
+
+test.skipIf(!posix)("a claim directory owned by another user allows repeated deliveries", () => {
+  const { tempRoot, claim } = setup()
+  const realUid = process.getuid!()
+  const getuid = spyOn(process, "getuid").mockReturnValue(realUid + 1)
+  try {
+    // Created by us under the other uid's name, so its owner differs from the faked uid.
+    const dir = join(tempRoot, `opencode-notifier-${realUid + 1}`)
+    mkdirSync(dir, { mode: 0o700 })
+    const stale = expiredFile(join(dir, hash("stale")))
+    expect(claim("event")).toBe(true)
+    expect(claim("event")).toBe(true)
+    expect(existsSync(stale)).toBe(true)
+  } finally {
+    getuid.mockRestore()
+  }
+})
+
+test("a throwing debug logger still lets unusable storage deliver", () => {
+  const { dir, claim } = setup()
+  writeFileSync(dir, "not a directory")
+  const oldDebug = process.env.OPENCODE_NOTIFIER_DEBUG
+  process.env.OPENCODE_NOTIFIER_DEBUG = "1"
+  const log = spyOn(console, "error").mockImplementation(() => {
+    throw new Error("stderr closed")
+  })
+  try {
+    expect(claim("event")).toBe(true)
+    expect(claim("event")).toBe(true)
+  } finally {
+    log.mockRestore()
+    if (oldDebug === undefined) delete process.env.OPENCODE_NOTIFIER_DEBUG
+    else process.env.OPENCODE_NOTIFIER_DEBUG = oldDebug
   }
 })
 
