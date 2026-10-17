@@ -508,6 +508,8 @@ function getActiveWindowId(): string | null {
   const platform = process.platform
   if (platform === "darwin") return getMacOSActiveWindowId()
   if (platform === "linux") {
+    // KWin IDs from kdotool must match the startup capture on X11 too, where xdotool reports numeric IDs.
+    if (process.env.KDE_SESSION_VERSION && isKDEJumpBackSupported()) return firstKDEWindowId(execWithTimeout("kdotool getactivewindow"))
     if (process.env.WAYLAND_DISPLAY) return getLinuxWaylandActiveWindowId()
     if (process.env.DISPLAY) return firstNumericWindowId(execWithTimeout("xdotool getactivewindow"))
     return null
@@ -620,6 +622,11 @@ export function isTerminalFocused(): boolean {
 
     if (process.platform === "win32") return isWindowsHostFocused()
 
+    // An unresolved KDE host must not let a focused tmux or Zellij pane stand in for desktop focus.
+    if (!cachedWindowId && isKDEJumpBackSupported()) {
+      debugFocusState("linux focus: KDE originating window is unknown, notifying")
+      return false
+    }
     const tmuxPaneActive = process.env.TMUX ? isTmuxPaneActive() : null
     const currentWindowId = getActiveWindowId()
     const focused = isLinuxTerminalFocused({
@@ -940,8 +947,8 @@ export async function captureStartupWindowId(): Promise<void> {
   if (process.platform !== "linux" || !process.env.KDE_SESSION_VERSION) return
   startupWindowCapture ??= (async () => {
     cachedKDEJumpBackSupport = await execFileAsync("kdotool", ["--help"], 1000) !== null
-    if (!cachedKDEJumpBackSupport) return
-    cachedWindowId = await getKDEStartupWindowId()
+    // Without kdotool, keep the foreground capture (xdotool on X11) used before host resolution.
+    cachedWindowId = cachedKDEJumpBackSupport ? await getKDEStartupWindowId() : getActiveWindowId()
     cachedWindowTitleValue = undefined
     // Do not write an automatically captured ID into process.env. It can be
     // inherited by another client or mistaken for a user override on reload.

@@ -123,3 +123,26 @@ test("focusOnClick=false keeps the popup from changing tabs or focusing a window
   expect(await child.exited, error).toBe(0)
   expect(JSON.parse(output)).toEqual(["popup:obsidian"])
 })
+
+test("a tabs-disabled client viewing a child owns its parent's completion over an unrelated client", async () => {
+  const directory = mkdtempSync(join(root, "child-route-"))
+  const clients = await Promise.all([
+    startClient(directory, "ghostty", ["ghostty-session"]),
+    startClient(directory, "obsidian", [], { tabsEnabled: false, routeSession: "child-session", rootSession: "obsidian-session" }),
+  ])
+  const outputs: string[] = []
+  try {
+    for (let attempt = 0; attempt < 100 && !["ghostty", "obsidian"].every(name => existsSync(join(directory, name + ".ready"))); attempt++) await Bun.sleep(10)
+    for (const child of clients) {
+      child.stdin.write("complete\n")
+      child.stdin.end()
+      const output = await new Response(child.stdout).text()
+      const error = await new Response(child.stderr).text()
+      expect(await child.exited, error).toBe(0)
+      outputs.push(...JSON.parse(output))
+    }
+  } finally {
+    for (const child of clients) if (child.exitCode === null) child.kill()
+  }
+  expect(outputs).toEqual(["popup:obsidian", "navigate:obsidian:obsidian-session", "jump:obsidian"])
+})

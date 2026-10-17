@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test"
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
 
@@ -24,8 +24,19 @@ if (args[0] === "getwindowclassname") console.log(args[1] === ${JSON.stringify(o
 if (args[0] === "windowactivate" && process.env.FIXTURE_ACTIVATION_FAILS) process.exit(1)
 `)
 chmodSync(join(directory, "kdotool"), 0o755)
+// An attached tmux pane that is active, so only the desktop window can decide focus.
+writeFileSync(join(directory, "tmux"), `#!/bin/sh\necho "1 1 1"\n`)
+chmodSync(join(directory, "tmux"), 0o755)
+// X11 without kdotool: xdotool reports numeric IDs from the active file.
+const xdotoolDirectory = join(directory, "xdotool-only")
+mkdirSync(xdotoolDirectory)
+writeFileSync(join(xdotoolDirectory, "xdotool"), `#!${process.execPath}
+import { readFileSync } from "fs"
+if (process.argv[2] === "getactivewindow") console.log(readFileSync(${JSON.stringify(activePath)}, "utf8"))
+`)
+chmodSync(join(xdotoolDirectory, "xdotool"), 0o755)
 
-async function run(script: string, pinned?: string, vscodeHost = false, options: { hostWindows?: string, activationFails?: boolean, termProgram?: string, active?: string } = {}) {
+async function run(script: string, pinned?: string, vscodeHost = false, options: { hostWindows?: string, activationFails?: boolean, termProgram?: string, active?: string, env?: Record<string, string | undefined> } = {}) {
   writeFileSync(callsPath, "")
   writeFileSync(activePath, options.active ?? windowID)
   const parent = `
@@ -45,6 +56,7 @@ async function run(script: string, pinned?: string, vscodeHost = false, options:
       FIXTURE_HOST_WINDOWS: options.hostWindows, FIXTURE_ACTIVATION_FAILS: options.activationFails ? "1" : undefined,
       DBUS_SESSION_BUS_ADDRESS: "fixture",
       OPENCODE_NOTIFIER_CONFIG_PATH: configPath, OPENCODE_CLIENT: "cli",
+      ...options.env,
     }, stdout: "pipe", stderr: "pipe",
   })
   const output = await new Response(child.stdout).text()
@@ -118,6 +130,51 @@ test.skipIf(process.platform !== "linux")("ambiguous VS Code windows fail open a
   `, undefined, true, { hostWindows: `${otherID}\n${thirdID}` })
   expect(result.output).toBe("false false")
   expect(result.calls.some(args => args[0] === "windowactivate")).toBe(false)
+})
+
+test.skipIf(process.platform !== "linux")("an unresolved KDE host is not treated as focused because its tmux pane is active", async () => {
+  const thirdID = "{ef22a78e-edcf-4f8b-bc72-e4ce6b722051}"
+  const result = await run(`
+    const focus = await import(${JSON.stringify(modulePath)})
+    await focus.captureStartupWindowId()
+    console.log(focus.isTerminalFocused())
+  `, undefined, true, { hostWindows: `${otherID}\n${thirdID}`, active: windowID, env: { TMUX: "/tmp/fixture,1,0", TMUX_PANE: "%1" } })
+  expect(result.output).toBe("false")
+})
+
+test.skipIf(process.platform !== "linux")("KDE X11 compares the captured KWin ID with the KWin active window", async () => {
+  const result = await run(`
+    import { writeFileSync } from "fs"
+    const focus = await import(${JSON.stringify(modulePath)})
+    await focus.captureStartupWindowId()
+    console.log(focus.isTerminalFocused())
+    writeFileSync(${JSON.stringify(activePath)}, ${JSON.stringify(otherID)})
+    console.log(focus.isTerminalFocused())
+  `, undefined, false, { env: { WAYLAND_DISPLAY: undefined, DISPLAY: ":0" } })
+  expect(result.output).toBe("true\nfalse")
+})
+
+test.skipIf(process.platform !== "linux")("KDE X11 without kdotool keeps xdotool focus suppression", async () => {
+  writeFileSync(callsPath, "")
+  writeFileSync(activePath, "4194307")
+  const child = Bun.spawn([process.execPath, "--eval", `
+    import { writeFileSync } from "fs"
+    const focus = await import(${JSON.stringify(modulePath)})
+    await focus.captureStartupWindowId()
+    console.log(focus.isTerminalFocused())
+    writeFileSync(${JSON.stringify(activePath)}, "4194999")
+    console.log(focus.isTerminalFocused())
+  `], {
+    env: {
+      ...process.env, PATH: xdotoolDirectory, DISPLAY: ":0", KDE_SESSION_VERSION: "6", WAYLAND_DISPLAY: undefined,
+      TMUX: undefined, WEZTERM_PANE: undefined, ZELLIJ_SESSION_NAME: undefined, ZELLIJ_PANE_ID: undefined,
+      OPENCODE_NOTIFIER_WINDOW_ID: undefined,
+    }, stdout: "pipe", stderr: "pipe",
+  })
+  const output = await new Response(child.stdout).text()
+  const error = await new Response(child.stderr).text()
+  expect(await child.exited, error).toBe(0)
+  expect(output.trim()).toBe("true\nfalse")
 })
 
 test.skipIf(process.platform !== "linux")("the active VS Code window resolves multiple windows owned by its ancestor", async () => {

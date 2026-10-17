@@ -112,11 +112,12 @@ export function createNotifier(access: SessionAccess, directory: string, deliver
       sessionTitle ??= info.title
       agentName = info.agentName ?? null
     }
-    if (disposed || (valid && !valid())) return
+    if (disposed) return
     if (key && delivery === "terminal") {
       const identity = `${directory}\0${key}`
       if (!(hooks.claim ? await hooks.claim(identity, sessionID) : claimDelivery(identity))) return
     }
+    // valid() can consume the alert, so it runs once, after the claim may have waited.
     if (disposed || (valid && !valid())) return
     const project = directory ? (current.showFullPath ? directory : basename(directory)) : null
     await handleEvent(current, event, project, elapsed, sessionTitle, sessionID, agentName ?? extractAgentNameFromSessionTitle(sessionTitle), hooks.focusSession)

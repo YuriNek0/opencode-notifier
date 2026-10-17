@@ -12,7 +12,11 @@ const setup: Plugin.Definition["setup"] = async (ctx) => {
       const route = ctx.ui?.router?.current?.()
       const tabs = ctx.ui?.tabs?.list?.()
       if (tabs) sessions = tabs.map(tab => tab.sessionID)
-      if (route?.type === "session") (sessions ??= []).push(route.sessionID)
+      if (route?.type === "session") {
+        // A child route also owns its family, so publish its root alongside it.
+        (sessions ??= []).push(route.sessionID)
+        sessions.push(ctx.data.session.root(route.sessionID) || route.sessionID)
+      }
     } catch {}
     return { location: ctx.location ?? ctx.data.location.default(), sessions }
   }, sessionID => ctx.data.session.root(sessionID))
