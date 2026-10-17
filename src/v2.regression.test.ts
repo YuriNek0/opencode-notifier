@@ -64,7 +64,7 @@ async function exercise(events: OpenCodeEvent[], options: {
       context: async () => [{ id: "message", type: "user", text: "hello", time: { created: Date.now() - (options.messageAge ?? 1000) } } satisfies SessionMessageUser],
     },
     permission: { list: async () => [] },
-  } as never, { directory: fixture }, options.delivery ?? "terminal", claim)
+  } as never, { directory: fixture }, options.delivery ?? "terminal", { claim: async (key, _sessionID, valid) => valid() && claim(key) })
   try {
     for (const input of events) await notifier.event(input)
     return writes.filter(w => w.includes("PROBE_"))

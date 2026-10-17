@@ -1,3 +1,4 @@
+import { disposeLinuxNotifications } from "./notify"
 import type { Plugin, PluginModule } from "@opencode-ai/plugin"
 import { loadConfig } from "./config"
 import { captureStartupWindowId } from "./focus"
@@ -103,7 +104,7 @@ function getMessageUpdatedInfo(event: unknown): MessageUpdatedInfo {
 }
 
 export const NotifierPlugin: Plugin = async ({ client, directory }) => {
-  captureStartupWindowId()
+  await captureStartupWindowId()
   const clientEnv = process.env.OPENCODE_CLIENT
   if (clientEnv && clientEnv !== "cli" && !loadConfig().enableOnDesktop) return {}
   const notifier = createNotifier({
@@ -135,6 +136,7 @@ export const NotifierPlugin: Plugin = async ({ client, directory }) => {
 
   return {
     async dispose() {
+      disposeLinuxNotifications()
       clearTimeout(connectedTimer)
       notifier.dispose()
     },

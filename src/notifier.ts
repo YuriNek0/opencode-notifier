@@ -27,17 +27,25 @@ export interface SessionAccess {
 
 export type Delivery = "all" | "terminal" | "command"
 
+export interface DeliveryHooks {
+  // valid() is checked right before the claim is recorded, so a canceled alert leaves its key free for a retry.
+  claim?: (key: string, sessionID: string | null, valid: () => boolean) => Promise<boolean>
+  focusSession?: (sessionID: string) => void
+}
+
 // key identifies the host event behind an alert. Terminals on one machine share it, so only one delivers.
 interface NotifyOptions {
   title?: string | null
   now?: number
   key?: string
-  // Called after lookups, right before delivery. False skips the alert.
+  // Checked after lookups and again around the claim. False skips the alert. Must not change state.
   valid?: () => boolean
+  // Runs once the alert passed every check and is about to be delivered.
+  commit?: () => void
 }
 
 // Each host instance owns its timers and session state. The adapters only translate API data.
-export function createNotifier(access: SessionAccess, directory: string, delivery: Delivery = "all", claim = claimDelivery) {
+export function createNotifier(access: SessionAccess, directory: string, delivery: Delivery = "all", hooks: DeliveryHooks = {}) {
   const children = new Set<string>()
   const sequences = new Map<string, number>()
   const errors = new Set<string>()
@@ -90,7 +98,7 @@ export function createNotifier(access: SessionAccess, directory: string, deliver
     pending.delete(sessionID)
   }
 
-  async function notify(event: EventType, sessionID: string | null = null, { title, now = Date.now(), key, valid }: NotifyOptions = {}) {
+  async function notify(event: EventType, sessionID: string | null = null, { title, now = Date.now(), key, valid = () => true, commit }: NotifyOptions = {}) {
     if (disposed) return
     const current = config()
     // Do not count a server event that has no command to deliver.
@@ -107,10 +115,15 @@ export function createNotifier(access: SessionAccess, directory: string, deliver
       sessionTitle ??= info.title
       agentName = info.agentName ?? null
     }
-    if (disposed || (valid && !valid())) return
-    if (key && delivery === "terminal" && !claim(`${directory}\0${key}`)) return
+    if (disposed || !valid()) return
+    if (key && delivery === "terminal") {
+      const identity = `${directory}\0${key}`
+      if (!(hooks.claim ? await hooks.claim(identity, sessionID, () => !disposed && valid()) : claimDelivery(identity))) return
+    }
+    if (disposed || !valid()) return
+    commit?.()
     const project = directory ? (current.showFullPath ? directory : basename(directory)) : null
-    await handleEvent(current, event, project, elapsed, sessionTitle, sessionID, agentName ?? extractAgentNameFromSessionTitle(sessionTitle))
+    await handleEvent(current, event, project, elapsed, sessionTitle, sessionID, agentName ?? extractAgentNameFromSessionTitle(sessionTitle), hooks.focusSession)
   }
 
   function track(sessionID: string, parentID?: string | null) {
@@ -142,12 +155,8 @@ export function createNotifier(access: SessionAccess, directory: string, deliver
     for (const [id, deferred] of pending) {
       if (deferred.grace || hasRunningChildren(id)) continue
       const grace = setTimeout(() => {
-        const valid = () => {
-          if (pending.get(id) !== deferred || deferred.grace !== grace) return false
-          drop(id)
-          return true
-        }
-        void notify("complete", id, { title: deferred.title, key: deferred.key, valid }).catch(() => undefined)
+        const valid = () => pending.get(id) === deferred && deferred.grace === grace
+        void notify("complete", id, { title: deferred.title, key: deferred.key, valid, commit: () => drop(id) }).catch(() => undefined)
       }, CHILDREN_SETTLE_MS)
       grace.unref()
       deferred.grace = grace
